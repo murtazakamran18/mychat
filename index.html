@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Realtime Chat — Firebase</title>
+  <style>
+    :root{
+      --bg:#f2f5f7;
+      --card:#ffffff;
+      --accent:#25D366; /* whatsapp green */
+      --muted:#9aa6ad;
+      --me-text:#fff;
+      --other-text:#111;
+      --radius:14px;
+      --glass: rgba(255,255,255,0.7);
+      --shadow: 0 6px 18px rgba(16,24,40,0.08);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background: linear-gradient(180deg,#e6eef3 0%, var(--bg) 100%);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+
+    /* Centered login card */
+    .app {
+      width:100%;
+      max-width:980px;
+      min-height:620px;
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:24px;
+      align-items:stretch;
+    }
+
+    /* Left: Branding / illustration */
+    .side {
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:28px;
+      border-radius:18px;
+      background: linear-gradient(180deg, rgba(37,211,102,0.09), rgba(37,211,102,0.02));
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(6px);
+      min-height:420px;
+    }
+    .brand {
+      text-align:center;
+    }
+    .logo {
+      width:96px;
+      height:96px;
+      border-radius:18px;
+      background:linear-gradient(135deg,var(--accent),#06b36b);
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      color:#fff;
+      font-weight:700;
+      font-size:28px;
+      box-shadow: 0 8px 24px rgba(37,211,102,0.18);
+    }
+    .brand h1{margin:12px 0 6px;font-size:20px}
+    .brand p{margin:0;color:var(--muted);font-size:14px}
+
+    /* Right: Card for login or chat container stacked */
+    .panel {
+      background:var(--card);
+      border-radius:18px;
+      padding:20px;
+      box-shadow: var(--shadow);
+      min-height:420px;
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+    }
+
+    /* Login card centered content */
+    .login {
+      margin:auto;
+      width:100%;
+      max-width:380px;
+    }
+    .login h2{margin:0 0 10px;font-size:20px}
+    .login p.sub{margin:0 0 18px;color:var(--muted);font-size:13px}
+
+    .field {
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      margin-bottom:12px;
+    }
+    label{font-size:13px;color:#334b56}
+    input[type="text"], input[type="password"]{
+      width:100%;
+      padding:12px 14px;
+      border-radius:12px;
+      border:1px solid #e6eef3;
+      font-size:15px;
+      outline:none;
+      background: linear-gradient(180deg,#fff,#fbfdff);
+      transition:box-shadow .18s, border-color .18s;
+    }
+    input:focus{box-shadow:0 4px 12px rgba(16,24,40,0.06); border-color:#cdece0}
+
+    .btn {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      padding:10px 14px;
+      border-radius:12px;
+      background:var(--accent);
+      color:#fff;
+      font-weight:600;
+      cursor:pointer;
+      border:none;
+      width:100%;
+      box-shadow: 0 6px 18px rgba(37,211,102,0.18);
+      transition:transform .08s;
+    }
+    .btn:active{transform:translateY(1px)}
+    .note {font-size:13px;color:var(--muted);text-align:center;margin-top:12px}
+
+    /* Chat UI */
+    .chat {
+      display:flex;
+      flex-direction:column;
+      height:100%;
+      opacity:0;
+      transform:translateY(8px);
+      transition:opacity .25s, transform .25s;
+    }
+    .chat.visible{opacity:1; transform:none}
+
+    .chat-header {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:12px 6px;
+      border-bottom:1px solid #f0f5f7;
+    }
+    .chat-header .title {
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    .avatar {
+      width:44px;height:44px;border-radius:10px;
+      background:linear-gradient(135deg,#f0f6f1,#e8fff1);
+      display:inline-flex;align-items:center;justify-content:center;
+      font-weight:700;color:#0b3c2c;
+    }
+    .welcome {
+      font-weight:700;font-size:15px;
+    }
+    .sub-muted {font-size:12px;color:var(--muted)}
+
+    .logout {
+      padding:8px 12px;border-radius:10px;background:#fff;border:1px solid #eef6f2;cursor:pointer;
+      display:inline-flex;gap:8px;align-items:center;font-weight:600;
+    }
+
+    /* messages area */
+    .messages-wrap {
+      flex:1;
+      overflow:auto;
+      padding:18px;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      background:
+        radial-gradient(700px 200px at 10% 0%, rgba(37,211,102,0.02), transparent 6%),
+        transparent;
+    }
+
+    .msg {
+      max-width:74%;
+      padding:10px 12px;
+      border-radius:16px;
+      line-height:1.28;
+      box-shadow: 0 4px 10px rgba(12,20,30,0.03);
+      word-wrap:break-word;
+      font-size:14px;
+    }
+    .meta {display:block;font-size:11px;margin-top:6px;color:#6f7b81}
+    .from-me {
+      margin-left:auto;
+      background: linear-gradient(180deg,var(--accent),#07b36a);
+      color:var(--me-text);
+      border-bottom-right-radius:4px;
+      border-bottom-left-radius:16px;
+      border-top-right-radius:16px;
+    }
+    .from-other {
+      margin-right:auto;
+      background:var(--card);
+      color:var(--other-text);
+      border-bottom-left-radius:4px;
+      border-bottom-right-radius:16px;
+      border-top-left-radius:16px;
+    }
+
+    /* Input bar */
+    .input-bar {
+      display:flex;
+      gap:8px;
+      align-items:center;
+      padding:12px;
+      border-top:1px solid #eef6f2;
+    }
+    .input {
+      flex:1;
+      display:flex;
+      gap:8px;
+      align-items:center;
+      background:linear-gradient(180deg,#fff,#fbfdff);
+      padding:8px;border-radius:14px;border:1px solid #eef6f2;
+    }
+    .input input{
+      border:0;padding:10px 8px;font-size:15px;outline:none;width:100%;
+      background:transparent;
+    }
+    .send-btn {
+      padding:10px 14px;border-radius:12px;background:#0b7c55;color:#fff;border:none;font-weight:700;cursor:pointer;
+    }
+
+    /* tiny screens: stack */
+    @media (max-width:880px){
+      .app{grid-template-columns:1fr; max-width:520px; min-height:720px}
+      .side{display:none}
+      body{padding:12px}
+    }
+
+    /* accessibility focus */
+    .btn:focus, .logout:focus, .send-btn:focus, input:focus {outline:2px solid rgba(37,211,102,0.14); outline-offset:2px}
+  </style>
+</head>
+<body>
+  <div class="app" aria-live="polite">
+    <div class="side" aria-hidden="true">
+      <div class="brand" >
+        <div class="logo">MW</div>
+        <h1>Realtime Chat</h1>
+        <p class="sub">Simple, responsive chat using Firebase Realtime Database — built in a single HTML file.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <!-- LOGIN CARD -->
+      <div id="loginCard" class="login" role="form" aria-labelledby="loginHeading">
+        <h2 id="loginHeading">Sign in to Chat</h2>
+        <p class="sub">Enter a username and the secret password to join the public chat room.</p>
+
+        <div class="field">
+          <label for="usernameInput">Username</label>
+          <input id="usernameInput" type="text" placeholder="e.g. Murtaza" autocomplete="username" />
+        </div>
+
+        <div class="field">
+          <label for="passwordInput">Password</label>
+          <input id="passwordInput" type="password" placeholder="Enter password" autocomplete="current-password" />
+        </div>
+
+        <button id="loginBtn" class="btn" aria-label="Login">Enter Chat</button>
+        <p class="note">Password is <strong>murtazaweb</strong>. This is a demo — messages go to a shared Firebase Realtime Database.</p>
+      </div>
+
+      <!-- CHAT SCREEN -->
+      <div id="chatCard" class="chat" aria-hidden="true">
+        <div class="chat-header" role="banner">
+          <div class="title">
+            <div class="avatar" id="avatarSmall">M</div>
+            <div>
+              <div class="welcome" id="welcomeText">Welcome, —</div>
+              <div class="sub-muted" id="statusText">Connected to Firebase</div>
+            </div>
+          </div>
+          <div>
+            <button id="logoutBtn" class="logout" aria-label="Logout">Logout</button>
+          </div>
+        </div>
+
+        <div id="messagesWrap" class="messages-wrap" role="log" aria-live="polite" aria-relevant="additions"></div>
+
+        <div class="input-bar" role="form">
+          <div class="input">
+            <input id="messageInput" type="text" placeholder="Type a message and press Enter..." aria-label="Message input" />
+          </div>
+          <button id="sendBtn" class="send-btn" aria-label="Send message">Send</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Firebase SDK (modular) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import {
+      getDatabase,
+      ref,
+      push,
+      onChildAdded,
+      serverTimestamp,
+      query,
+      limitToLast
+    } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+
+    // --- Firebase config (provided by user) ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyACrCMDPnnAdOG8tCrSJXAFjZue7SqUSIc",
+      authDomain: "mychat-a0d5f.firebaseapp.com",
+      databaseURL: "https://mychat-a0d5f-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "mychat-a0d5f",
+      storageBucket: "mychat-a0d5f.firebasestorage.app",
+      messagingSenderId: "790613656932",
+      appId: "1:790613656932:web:3b2fa3c4460d04bcbd2671",
+      measurementId: "G-7JWDFHQ0L5"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // DOM
+    const loginCard = document.getElementById('loginCard');
+    const chatCard = document.getElementById('chatCard');
+    const loginBtn = document.getElementById('loginBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const usernameInput = document.getElementById('usernameInput');
+    const passwordInput = document.getElementById('passwordInput');
+    const welcomeText = document.getElementById('welcomeText');
+    const avatarSmall = document.getElementById('avatarSmall');
+    const messagesWrap = document.getElementById('messagesWrap');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const statusText = document.getElementById('statusText');
+
+    let currentUser = null;
+
+    // Helpers
+    function sanitize(str){
+      // simple sanitizer to avoid HTML injection in text; we'll create text nodes mostly
+      if (str === null || str === undefined) return '';
+      return String(str);
+    }
+
+    function formatTime(ts){
+      try{
+        // ts might be serverTimestamp sentinel if not resolved; fallback to local Date
+        const d = (typeof ts === 'number' || typeof ts === 'string') ? new Date(Number(ts)) : new Date();
+        const hh = d.getHours().toString().padStart(2,'0');
+        const mm = d.getMinutes().toString().padStart(2,'0');
+        return `${hh}:${mm}`;
+      }catch(e){
+        return '';
+      }
+    }
+
+    function createMessageElement({user, text, time, key}){
+      const wrapper = document.createElement('div');
+      wrapper.className = 'msg ' + (user === currentUser ? 'from-me' : 'from-other');
+      // bubble text as text node (safe)
+      const p = document.createElement('div');
+      p.textContent = sanitize(text);
+      wrapper.appendChild(p);
+
+      const meta = document.createElement('span');
+      meta.className = 'meta';
+      meta.textContent = `${user} • ${formatTime(time)}`;
+      wrapper.appendChild(meta);
+
+      // For accessibility, set aria-label
+      wrapper.setAttribute('aria-label', `${user} at ${formatTime(time)} says: ${text}`);
+
+      return wrapper;
+    }
+
+    function scrollToBottom(smooth = true){
+      try{
+        messagesWrap.scrollTo({
+          top: messagesWrap.scrollHeight,
+          behavior: smooth ? 'smooth' : 'auto'
+        });
+      }catch(e){
+        messagesWrap.scrollTop = messagesWrap.scrollHeight;
+      }
+    }
+
+    // Display a message (append)
+    function displayMessage(snapshotKey, msgData){
+      // msgData: {user, text, time}
+      const el = createMessageElement({...msgData, key: snapshotKey});
+      messagesWrap.appendChild(el);
+      // tiny delay so CSS layout applies before scrolling
+      setTimeout(()=>scrollToBottom(true), 50);
+    }
+
+    // Realtime listening
+    function startListening(){
+      const msgsRef = ref(db, 'messages');
+      // load last 500 messages (limit)
+      const q = query(msgsRef, limitToLast(500));
+      onChildAdded(q, (snap) => {
+        const val = snap.val();
+        // Many realtime DBs store time as {'.sv': 'timestamp'} then gets resolved to numeric; handle gracefully
+        const msg = {
+          user: val.user || 'Anonymous',
+          text: val.text || '',
+          time: val.time || val.ts || Date.now()
+        };
+        displayMessage(snap.key, msg);
+      });
+    }
+
+    // Send message
+    async function sendMessage(text){
+      text = sanitize(text).trim();
+      if (!text) return;
+      const msgsRef = ref(db, 'messages');
+      // push with serverTimestamp for consistent ordering
+      try{
+        await push(msgsRef, {
+          user: currentUser,
+          text,
+          time: Date.now() // using client time; optional to use serverTimestamp()
+          // If you prefer server timestamp, you can use: time: serverTimestamp()
+        });
+        // clear input
+        messageInput.value = '';
+      }catch(err){
+        console.error('Send error', err);
+        alert('Failed to send message. Check console for details.');
+      }
+    }
+
+    // UI state transitions
+    function showChat(){
+      loginCard.style.display = 'none';
+      chatCard.setAttribute('aria-hidden','false');
+      chatCard.classList.add('visible');
+      chatCard.style.display = 'flex';
+      // update header
+      welcomeText.textContent = `Welcome, ${currentUser}`;
+      avatarSmall.textContent = (currentUser || 'U').slice(0,2).toUpperCase();
+      // focus input
+      setTimeout(()=>messageInput.focus(), 250);
+    }
+
+    function showLogin(){
+      chatCard.classList.remove('visible');
+      chatCard.setAttribute('aria-hidden','true');
+      chatCard.style.display = 'none';
+      loginCard.style.display = 'block';
+      // clear messages UI to avoid confusion for next user
+      messagesWrap.innerHTML = '';
+      usernameInput.focus();
+    }
+
+    // Login flow
+    loginBtn.addEventListener('click', () => {
+      const name = usernameInput.value.trim() || 'Anonymous';
+      const pwd = passwordInput.value;
+      if (pwd !== 'murtazaweb') {
+        alert('Incorrect password. Please try again.');
+        passwordInput.value = '';
+        passwordInput.focus();
+        return;
+      }
+      currentUser = name;
+      // hide login, show chat
+      showChat();
+      // start listening only once after login
+      startListening();
+    });
+
+    // Allow Enter key to login on password input
+    passwordInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') loginBtn.click();
+    });
+    usernameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') passwordInput.focus();
+    });
+
+    // Logout
+    logoutBtn.addEventListener('click', () => {
+      // simple logout: reset user and UI
+      currentUser = null;
+      usernameInput.value = '';
+      passwordInput.value = '';
+      messageInput.value = '';
+      showLogin();
+    });
+
+    // Send handlers
+    sendBtn.addEventListener('click', () => {
+      if (!currentUser) { alert('Please login first.'); return; }
+      sendMessage(messageInput.value);
+    });
+    messageInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey){
+        e.preventDefault();
+        sendBtn.click();
+      }
+    });
+
+    // show login initially
+    showLogin();
+
+    // Small online status ping (not required but helpful)
+    function checkConnection(){
+      // Attempt to write a tiny presence ping to a non-persistent path (optional)
+      // We won't write presence here to keep DB simple; just set status text
+      statusText.textContent = 'Connected to Firebase';
+    }
+    checkConnection();
+
+    // Accessibility: focus management on first load
+    usernameInput.focus();
+
+  </script>
+</body>
+</html>
